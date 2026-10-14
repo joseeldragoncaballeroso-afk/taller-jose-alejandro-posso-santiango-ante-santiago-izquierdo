@@ -1,80 +1,206 @@
-# Cafetería Universitaria: patrones de diseño
 
-## 1. Nombre y problema que resuelve
-**Nombre:** Cafetería Universitaria.  
-**Problema:** registrar pedidos de bebidas, permitir agregar ingredientes opcionales y comunicar los cambios de estado del pedido de forma organizada.
+#include <iostream>
+#include <string>
+#include <vector>
+using namespace std;
 
-## 2. Patrones seleccionados
+// Interfaz comun de las bebidas
+class Bebida {
+public:
+    virtual string descripcion() = 0;
+    virtual double precio() = 0;
+    virtual ~Bebida() {}
+};
 
-| Grupo | Patrón | Aplicación |
-|---|---|---|
-| Creacional | Factory Method | `CreadorCafe` y `CreadorTe` crean objetos que comparten la interfaz `Bebida`. |
-| Estructural | Decorator | `Leche` y `Chocolate` envuelven una bebida y añaden descripción y costo sin modificar las clases `Cafe` o `Te`. |
-| Comportamiento | Observer | `Pedido` notifica a `PantallaCocina` y `Notificador` cuando cambia el estado. |
+// Productos concretos
+class Cafe : public Bebida {
+public:
+    string descripcion() override {
+        return "Cafe";
+    }
+    double precio() override {
+        return 5000;
+    }
+};
 
-## 3. Relación e integración de los patrones
-El flujo principal inicia con Factory Method, que crea una bebida concreta y la devuelve como `Bebida`. Luego Decorator recibe ese mismo objeto y, si el usuario elige un ingrediente, lo envuelve para ampliar su descripción y precio. Finalmente, el pedido cambia de estado y Observer avisa a dos observadores. Los tres patrones participan en una sola compra.
+class Te : public Bebida {
+public:
+    string descripcion() override {
+        return "Te";
+    }
+    double precio() override {
+        return 4000;
+    }
+};
 
-Si se elimina Factory Method, la selección de productos debe volver a crear objetos concretos directamente desde el flujo principal. Si se elimina Decorator, los ingredientes opcionales tendrían que incorporarse a las clases originales o manejarse con condiciones adicionales. Si se elimina Observer, el pedido tendría que llamar manualmente a cada destinatario cada vez que cambia su estado.
+// 1. CREACIONAL: FACTORY METHOD
+class CreadorBebida {
+public:
+    virtual Bebida* crearBebida() = 0;
+    virtual ~CreadorBebida() {}
+};
 
-## 4. Diagrama de clases (relaciones)
-- `Bebida` es la interfaz común de `Cafe`, `Te` y `DecoradorBebida`.
-- `CreadorBebida` define `crearBebida()`. `CreadorCafe` y `CreadorTe` implementan ese método.
-- `DecoradorBebida` contiene una referencia a `Bebida`; `Leche` y `Chocolate` extienden el comportamiento.
-- `Pedido` mantiene una colección de `Observador`. `PantallaCocina` y `Notificador` implementan la interfaz `Observador`.
+class CreadorCafe : public CreadorBebida {
+public:
+    Bebida* crearBebida() override {
+        return new Cafe();
+    }
+};
 
-Representación resumida:
+class CreadorTe : public CreadorBebida {
+public:
+    Bebida* crearBebida() override {
+        return new Te();
+    }
+};
 
-```text
-CreadorBebida
-   |-- CreadorCafe
-   |-- CreadorTe
-          | crea
-          v
-        Bebida <----------------------+
-        |  ^                          |
-        |  |                          |
-       Cafe Te                DecoradorBebida
-                                  |-- Leche
-                                  |-- Chocolate
+// 2. ESTRUCTURAL: DECORATOR
+class DecoradorBebida : public Bebida {
+protected:
+    Bebida* bebida;
+public:
+    DecoradorBebida(Bebida* b) : bebida(b) {}
 
-Pedido o---- Observador
-                 |-- PantallaCocina
-                 |-- Notificador
-```
+    ~DecoradorBebida() override {
+        delete bebida;
+    }
+};
 
-## 5. Compilar y ejecutar
-Se requiere un compilador de C++ compatible con C++11 o superior.
+class Leche : public DecoradorBebida {
+public:
+    Leche(Bebida* b) : DecoradorBebida(b) {}
 
-**Linux / macOS con g++:**
-```bash
-g++ main.cpp -o cafeteria
-./cafeteria
-```
+    string descripcion() override {
+        return bebida->descripcion() + " con leche";
+    }
 
-**Windows con MinGW:**
-```bash
-g++ main.cpp -o cafeteria.exe
-cafeteria.exe
-```
+    double precio() override {
+        return bebida->precio() + 1000;
+    }
+};
 
-También se puede copiar el código a un IDE de C++ y ejecutar el programa.
+class Chocolate : public DecoradorBebida {
+public:
+    Chocolate(Bebida* b) : DecoradorBebida(b) {}
 
-## 6. Ejemplo de salida esperada
-Si se selecciona café y leche, se muestra un producto `Cafe con leche` con total `$6000`. Luego aparecen mensajes de la cocina y de la notificación para los estados `En preparacion` y `Listo para entregar`.
+    string descripcion() override {
+        return bebida->descripcion() + " con chocolate";
+    }
 
-## 7. Integrantes
-- [Escribir nombre del integrante 1]
-- [Escribir nombre del integrante 2]
-- [Escribir nombre del integrante 3]
-- [Escribir nombre del integrante 4, si aplica]
+    double precio() override {
+        return bebida->precio() + 1500;
+    }
+};
 
-## 8. Fuente de consulta
-Refactoring.Guru. Catálogo de patrones de diseño:
-https://refactoring.guru/design-patterns/catalog
+// 3. COMPORTAMIENTO: OBSERVER
+class Observador {
+public:
+    virtual void actualizar(string estado) = 0;
+    virtual ~Observador() {}
+};
 
-Páginas consultadas:
-- Factory Method: https://refactoring.guru/design-patterns/factory-method
-- Decorator: https://refactoring.guru/design-patterns/decorator
-- Observer: https://refactoring.guru/design-patterns/observer
+class PantallaCocina : public Observador {
+public:
+    void actualizar(string estado) override {
+        cout << "[Cocina] Estado del pedido: "
+             << estado << endl;
+    }
+};
 
+class Notificador : public Observador {
+public:
+    void actualizar(string estado) override {
+        cout << "[Notificacion] El pedido esta "
+             << estado << endl;
+    }
+};
+
+class Pedido {
+private:
+    vector<Observador*> observadores;
+    string estado;
+
+public:
+    Pedido() {
+        estado = "Recibido";
+    }
+
+    void agregarObservador(Observador* o) {
+        observadores.push_back(o);
+    }
+
+    void cambiarEstado(string nuevoEstado) {
+        estado = nuevoEstado;
+
+        for (Observador* o : observadores) {
+            o->actualizar(estado);
+        }
+    }
+};
+
+int main() {
+    int opcion, extra;
+    Bebida* bebida = nullptr;
+    CreadorBebida* creador = nullptr;
+
+    cout << "=== CAFETERIA UNIVERSITARIA ===\n";
+    cout << "Seleccione su bebida:\n";
+    cout << "1. Cafe ($5000)\n";
+    cout << "2. Te ($4000)\n";
+    cout << "Opcion: ";
+    cin >> opcion;
+
+    if (opcion == 1) {
+        creador = new CreadorCafe();
+    } else if (opcion == 2) {
+        creador = new CreadorTe();
+    } else {
+        cout << "Opcion no valida.\n";
+        return 0;
+    }
+
+    // Factory Method crea la bebida
+    bebida = creador->crearBebida();
+    delete creador;
+
+    cout << "\nDesea agregar un ingrediente?\n";
+    cout << "1. Leche (+$1000)\n";
+    cout << "2. Chocolate (+$1500)\n";
+    cout << "3. Ninguno\n";
+    cout << "Opcion: ";
+    cin >> extra;
+
+    // Decorator agrega opciones sin modificar
+    // las clases Cafe o Te
+    if (extra == 1) {
+        bebida = new Leche(bebida);
+    } else if (extra == 2) {
+        bebida = new Chocolate(bebida);
+    } else if (extra != 3) {
+        cout << "Opcion no valida; se conserva "
+             << "la bebida original.\n";
+    }
+
+    cout << "\n=== RESUMEN DEL PEDIDO ===\n";
+    cout << "Producto: " << bebida->descripcion()
+         << endl;
+    cout << "Total: $" << bebida->precio() << endl;
+
+    // Observer registra los interesados
+    // en los cambios del pedido
+    Pedido pedido;
+    PantallaCocina cocina;
+    Notificador notificacion;
+
+    pedido.agregarObservador(&cocina);
+    pedido.agregarObservador(&notificacion);
+
+    cout << "\nProcesando pedido...\n";
+    pedido.cambiarEstado("En preparacion");
+    pedido.cambiarEstado("Listo para entregar");
+
+    delete bebida;
+
+    cout << "\nGracias por su compra.\n";
+    return 0;
+}
